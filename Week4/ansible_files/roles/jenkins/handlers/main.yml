@@ -1,0 +1,20 @@
+---
+- name: start jenkins
+  systemd:
+    name: jenkins
+    state: started
+- name: enable jenkins
+  systemd:
+    name: jenkins
+    enabled: true
+- name: sleep 30s
+  wait_for: timeout=30
+  delegate_to: localhost
+- name: restart jenkins
+  systemd:
+    name: jenkins
+    state: restarted
+- name: admin pwd
+  shell: cat /var/lib/jenkins/secrets/initialAdminPassword
+  changed_when: false
+  register: result

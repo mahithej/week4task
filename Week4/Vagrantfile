@@ -1,0 +1,98 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# README
+#
+# Getting Started:
+# 1. vagrant plugin install vagrant-hostmanager
+# 2. vagrant up
+# 3. vagrant ssh
+#
+# This should put you at the cserver host
+#  with access, by name, to other vms
+Vagrant.configure(2) do |config|
+  config.hostmanager.enabled = true
+  config.vm.provider "virtualbox" do |v|
+	v.memory = 1024
+	v.cpus = 2
+end
+  config.vm.define "cserver", primary: true do |h|
+	h.vm.box = "ubuntu/trusty64"
+    h.vm.network "private_network", ip: "192.168.135.112"
+	h.vm.provision :shell, :inline => <<'EOF'
+	if [[ ! -f "/home/vagrant/.ssh/id_rsa" ]]; then
+ssh-keygen -t rsa -N "" -f /home/vagrant/.ssh/id_rsa
+fi
+sudo cp /home/vagrant/.ssh/id_rsa.pub /vagrant/cserver.pub
+echo "cserver">/etc/hostname
+sudo sed -i '1 i\127.0.0.1 cserver' /etc/hosts
+cat << 'SSHEOF' > /home/vagrant/.ssh/config
+Host *
+  StrictHostKeyChecking no
+  UserKnownHostsFile=/dev/null
+SSHEOF
+
+chown -R vagrant:vagrant /home/vagrant/.ssh/
+apt-get -y update
+apt-get -y install tree
+apt-get -y install software-properties-common
+apt-add-repository ppa:ansible/ansible
+apt-get -y update
+apt-get -y install ansible
+sleep 13
+sudo chown vagrant:vagrant /etc/ansible/hosts
+cat << 'FEOF' >> /etc/ansible/hosts
+[webservers]
+ws1
+FEOF
+sudo chown root:root /etc/ansible/hosts
+sudo apt-get install -y python-software-properties debconf-utils
+add-apt-repository -y ppa:webupd8team/java
+apt-get update
+echo "oracle-java8-installer shared/accepted-oracle-license-v1-1 select true" | sudo debconf-set-selections
+apt-get install -y oracle-java8-installer
+echo JAVA_HOME=\"/usr/lib/jvm/java-8-oracle\"|sudo tee -a /etc/environment
+source /etc/environment
+apt-get -y install dos2unix
+EOF
+	h.vm.provision "shell", inline: "mkdir -p /etc/ansible/roles/jenkins/{tasks,vars,handlers};chmod 777 -R /etc/ansible"
+	h.vm.provision "file", source: "/GitHub/kartik_bootcamp/Week4/ansible_files/roles/jenkins/tasks/main.yml", destination: "/etc/ansible/roles/jenkins/tasks/main.yml"
+	h.vm.provision "file", source: "/GitHub/kartik_bootcamp/Week4/ansible_files/roles/jenkins/vars/main.yml", destination: "/etc/ansible/roles/jenkins/vars/main.yml"
+	h.vm.provision "file", source: "/GitHub/kartik_bootcamp/Week4/ansible_files/roles/jenkins/handlers/main.yml", destination: "/etc/ansible/roles/jenkins/handlers/main.yml"
+	h.vm.provision "file", source: "/GitHub/kartik_bootcamp/Week4/ansible_files/jen.yml", destination: "/etc/ansible/jen.yml"
+	h.vm.provision "file", source: "/GitHub/kartik_bootcamp/Week4/paramjob.xml", destination: "/home/vagrant/paramjob.xml"
+	h.vm.provision "file", source: "/GitHub/kartik_bootcamp/Week4/mavenapp.xml", destination: "/home/vagrant/myjob.xml"
+	h.vm.provision "file", source: "/GitHub/kartik_bootcamp/Week4/ansiwrapper.sh", destination: "/home/vagrant/ansiwrapper.sh"
+	h.vm.provision "file", source: "/GitHub/kartik_bootcamp/Week4/mavenconfig.xml", destination: "/home/vagrant/mavenconfig.xml"
+	h.vm.provision "shell", inline: "dos2unix /home/vagrant/myjob.xml /home/vagrant/mavenconfig.xml;chmod 777 /home/vagrant/ansiwrapper.sh;sed -i -e 's/\r$//' ansiwrapper.sh;chmod -R 755 /etc/ansible;reboot"
+ end
+
+  config.vm.define "ws1" do |h|
+	h.vm.box = "centos/7"
+    h.vm.network "private_network", ip: "192.168.135.111"
+    h.vm.provision :shell, :inline=> <<'EOF'
+	cat /vagrant/cserver.pub >> /home/vagrant/.ssh/authorized_keys
+	echo "ws1">/etc/hostname
+	sed -i '1 i\127.0.0.1 ws1' /etc/hosts
+	yum -y install epel-release
+	yum -y update
+	yum -y install python-pip
+	sudo pip install --upgrade pip
+	sudo pip install python-jenkins
+	sudo yum -y install git
+	sudo yum -y install maven
+	reboot
+EOF
+  end
+#
+#  config.vm.define "ws2" do |h|
+#	h.vm.box = "centos/7"
+#    h.vm.network "private_network", ip: "192.168.135.112"
+#    h.vm.provision :shell, :inline=> <<'EOF'
+#	cat /vagrant/cserver.pub >> /home/vagrant/.ssh/authorized_keys
+#	echo "ws2">/etc/hostname
+#	sed -i '1 i\127.0.0.1 ws2' /etc/hosts
+#	reboot
+#EOF
+#  end
+end

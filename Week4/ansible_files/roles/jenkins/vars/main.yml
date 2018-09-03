@@ -1,0 +1,9 @@
+---
+# vars file for jenkins
+
+java:
+  version: "java-1.8.0-openjdk"
+
+jenkins:
+  repo: "http://pkg.jenkins-ci.org/redhat-stable/jenkins.repo"
+  rpm_key: "https://jenkins-ci.org/redhat/jenkins-ci.org.key"
